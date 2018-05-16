@@ -1,0 +1,37 @@
+FROM registry.access.redhat.com/rhel7
+
+ENV MULE_HOME /opt/mule
+ENV MULE_VERSION 3.9.0
+ENV MULE_BINARY_DOWNLOAD_URL https://repository.mulesoft.org/nexus/content/repositories/releases/org/mule/distributions/mule-standalone/${MULE_VERSION}/mule-standalone-${MULE_VERSION}.tar.gz
+
+#Set some labels that are UI visible
+LABEL io.k8s.description="Platform for running Mule ${MULE_VERSION} CE applications" \
+    io.k8s.display-name="Mule ${MULE_VERSION}" \
+    io.openshift.expose-services="8080:http" \
+    io.openshift.tags="mule-${MULE_VERSION}"
+
+# add files
+ADD common-*.sh /tmp/
+
+RUN yum repolist --disablerepo=*  \
+    && yum-config-manager --disable \* > /dev/null \
+    && yum-config-manager --enable rhel-7-server-rpms > /dev/null \
+    && chmod +x /tmp/common-*.sh \
+    && /tmp/common-install.sh ${MULE_BINARY_DOWNLOAD_URL} ${MULE_VERSION} \
+    && rm -f /tmp/common-*.sh
+
+# Copy configs
+CMD [" cp -rf ./conf/* $MULE_HOME/conf/" ]
+
+# Fixup non root user.
+RUN chown -R 1001:0 $MULE_HOME && \
+    chmod -R g+wrx $MULE_HOME
+
+# Expose 8080
+EXPOSE 8080
+
+# Set Openshift  user
+USER 1001
+
+# Run
+CMD exec $MULE_HOME/bin/mule $MULE_OPTS_APPEND
